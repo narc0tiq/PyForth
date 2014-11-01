@@ -177,6 +177,20 @@ class Lexer(object):
 
 
 class ForthParser(object):
+    def parse(self, text):
+        self.tokens = []
+        self.string = ''
+        parse_with = self._parse_number_or_word
+
+        words = text.split(' ')
+        for word in words:
+            parse_with = parse_with(word)
+
+        if hasattr(parse_with, 'bad_end_state'):
+            raise BadParserEndState(parse_with.bad_end_state)
+
+        return self.tokens
+
     def _parse_number_or_word(self, word):
         try:
             number = float(word)
@@ -215,20 +229,6 @@ class ForthParser(object):
         else:
             self.string += ' '
             return self._parse_string
-
-    def parse(self, text):
-        self.tokens = []
-        self.string = ''
-        parse_with = self._parse_number_or_word
-
-        words = text.split(' ')
-        for word in words:
-            parse_with = parse_with(word)
-
-        if hasattr(parse_with, 'bad_end_state'):
-            raise BadParserEndState(parse_with.bad_end_state)
-
-        return self.tokens
 
 
 class ForthMachine(object):
