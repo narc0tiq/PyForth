@@ -16,4 +16,4 @@ available in this package in the file [LICENSE.md](LICENSE.md).
 
 ## Statistics ##
 
-4 old-school Forth programmers were offended during the creation of this code.
+5 old-school Forth programmers were offended during the creation of this code.
