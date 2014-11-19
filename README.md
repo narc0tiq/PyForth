@@ -17,3 +17,5 @@ available in this package in the file [LICENSE.md](LICENSE.md).
 ## Statistics ##
 
 5 old-school Forth programmers were offended during the creation of this code.
+
+[![Circle CI](https://circleci.com/gh/narc0tiq/PyForth/tree/master.png?style=badge)](https://circleci.com/gh/narc0tiq/PyForth/tree/master)
