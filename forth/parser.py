@@ -71,3 +71,7 @@ class Parser(object):
         self.parse_whitespace()
         return self.parse_word() or self.parse_newline()
 
+    def generate(self):
+        while True:
+            yield self.next_word()
+

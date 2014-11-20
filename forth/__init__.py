@@ -22,8 +22,5 @@ curses-like treatment of the terminal as a grid of cells, therefore some words
 regardless of the terminal's actual size).
 """
 from forth.parser import Parser
-
-class Machine(object):
-    """ A Forth machine. It has stacks and registers and things. """
-    pass
-
+from forth.machine import Machine
+from forth.exceptions import *
