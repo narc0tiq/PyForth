@@ -14,13 +14,11 @@ class TestTheParser():
             p.parse_word()
 
         with pytest.raises(StopIteration):
-            p.parse_newline()
-
-        with pytest.raises(StopIteration):
             p.parse_rest_of_line()
 
         with pytest.raises(StopIteration):
             p.next_word()
+        assert p.is_finished == True
 
     def test_all_whitespace(self):
         """ Parser consumes all whitespace in one gulp. """
@@ -31,12 +29,14 @@ class TestTheParser():
 
         with pytest.raises(StopIteration):
             p.next_word()
+        assert p.is_finished == True
 
         # Also, next_word will happily consume and ignore the whitespace itself.
         p = forth.Parser(whitespace_string)
 
         with pytest.raises(StopIteration):
             p.next_word()
+        assert p.is_finished == True
 
     def test_single_word(self):
         """ A single word is returned immediately. """
@@ -47,6 +47,7 @@ class TestTheParser():
         # no further words exist
         with pytest.raises(StopIteration):
             p.next_word()
+        assert p.is_finished == True
 
     def test_leading_whitespace(self):
         """ Leading whitespace is ignored. """
@@ -57,6 +58,7 @@ class TestTheParser():
         # no further words exist
         with pytest.raises(StopIteration):
             p.next_word()
+        assert p.is_finished == True
 
     def test_more_words(self):
         """ Multiple words are returned one at a time. """
@@ -69,6 +71,7 @@ class TestTheParser():
 
         with pytest.raises(StopIteration):
             p.next_word()
+        assert p.is_finished == True
 
     def test_more_whitespace(self):
         """ All whitespace is eaten together and has no effect on words. """
@@ -80,20 +83,21 @@ class TestTheParser():
 
         with pytest.raises(StopIteration):
             p.next_word()
+        assert p.is_finished == True
 
     def test_newlines(self):
-        """ Newlines are their own special word and will appear in the sequence. """
+        """ Newlines get consumed like other whitespace """
         p = forth.Parser("MY NAME IS OZYMANDIAS,\nKING OF KINGS!")
 
         assert p.next_word() == 'MY'
         assert p.next_word() == 'NAME'
         assert p.next_word() == 'IS'
         assert p.next_word() == 'OZYMANDIAS,'
-        assert p.next_word() == '\n'
         assert p.next_word() == 'KING'
         assert p.next_word() == 'OF'
         assert p.next_word() == 'KINGS!'
 
         with pytest.raises(StopIteration):
             p.next_word()
+        assert p.is_finished == True
 

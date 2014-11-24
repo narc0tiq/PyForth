@@ -46,7 +46,7 @@ class TestOpenBoxForth():
         m = forth.Machine()
         ret = m.eval('.')
 
-        assert ret == ' stack underflow'  # "Note that a stack underflow is NOT ok."
+        assert ret == ' ? stack underflow'  # "Note that a stack underflow is NOT ok."
         assert not m.data_stack
 
     def test_stack_pop_two(self):
@@ -59,14 +59,14 @@ class TestOpenBoxForth():
     def test_stack_one_pop_two(self):
         m = forth.Machine()
         ret = m.eval('1 . .')
-        assert ret == '1  stack underflow'
+        assert ret == '1  ? stack underflow'
         assert not m.data_stack
 
     def test_stack_underflow_cancels(self):
         m = forth.Machine()
         ret = m.eval('. 43')
 
-        assert ret == ' stack underflow'
+        assert ret == ' ? stack underflow'
         assert not m.data_stack
 
     def test_simple_math(self):
@@ -96,7 +96,7 @@ class TestOpenBoxForth():
             m = forth.Machine()
             ret = m.eval('1 ' + oper)
 
-            assert ret == ' stack underflow'
+            assert ret == ' ? stack underflow'
             assert not m.data_stack
 
     def test_dup(self):
@@ -109,7 +109,7 @@ class TestOpenBoxForth():
         m = forth.Machine()
         ret = m.eval('DUP')
 
-        assert ret == ' stack underflow'
+        assert ret == ' ? stack underflow'
 
     def test_over(self):
         m = forth.Machine()
@@ -121,7 +121,7 @@ class TestOpenBoxForth():
         m = forth.Machine()
         ret = m.eval('1 OVER')
 
-        assert ret == ' stack underflow'
+        assert ret == ' ? stack underflow'
 
     def test_rot(self):
         m = forth.Machine()
@@ -133,7 +133,7 @@ class TestOpenBoxForth():
         m = forth.Machine()
         ret = m.eval('1 2 ROT')
 
-        assert ret == ' stack underflow'
+        assert ret == ' ? stack underflow'
 
     def test_drop(self):
         m = forth.Machine()
@@ -145,7 +145,7 @@ class TestOpenBoxForth():
         m = forth.Machine()
         ret = m.eval('DROP')
 
-        assert ret == ' stack underflow'
+        assert ret == ' ? stack underflow'
 
     def test_tuck(self):
         m = forth.Machine()
@@ -157,10 +157,53 @@ class TestOpenBoxForth():
         m = forth.Machine()
         ret = m.eval('1 TUCK')
 
-        assert ret == ' stack underflow'
+        assert ret == ' ? stack underflow'
 
     def test_unknown_word(self):
         m = forth.Machine()
         ret = m.eval('UNKNOWN_WORD')
 
-        assert ret == ' undefined word: UNKNOWN_WORD'
+        assert ret == ' ? undefined word: UNKNOWN_WORD'
+
+    def test_tokenize(self):
+        m = forth.Machine()
+        interpreted = m.tokenize('23 *')
+
+        assert interpreted == [('NUMBER', 23), ('WORD', '*')]
+
+    def test_multi_eval(self):
+        m = forth.Machine()
+        ret = m.eval('12 34')
+
+        assert ret == ' ok'
+        assert m.data_stack == [12, 34]
+
+        ret = m.eval('+')
+        assert ret == ' ok'
+        assert m.data_stack == [46]
+
+    def test_multiline_eval(self):
+        m = forth.Machine()
+        ret = m.eval('1 2\n+')
+
+        assert ret == ' ok'
+        assert m.data_stack == [3]
+
+    def test_interpret(self):
+        m = forth.Machine()
+        ret = m.interpret([('NUMBER', 42),
+                           ('WORD', '.')])
+
+        assert ret == '42  ok'
+
+    def test_error_clears_stack(self):
+        m = forth.Machine()
+        ret = m.eval('42')
+
+        assert ret == ' ok'
+        assert m.data_stack == [42]
+
+        ret = m.eval('NO-SUCH-WORD')
+
+        assert 'undefined word' in ret
+        assert not m.data_stack

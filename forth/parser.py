@@ -37,6 +37,10 @@ class Parser(object):
         self.text = text
         self.pos = 0
 
+    @property
+    def is_finished(self):
+        return self.pos >= len(self.text)
+
     def _consume(self, pattern):
         """
         Consume (advancing self.pos) some characters based on a regex. The
@@ -46,7 +50,7 @@ class Parser(object):
         Note that matches are only ever expected at the start of the string
         slice.
         """
-        if self.pos >= len(self.text):
+        if self.is_finished:
             raise StopIteration()
         found = re.match(pattern, self.text[self.pos:])
         if found is None:
@@ -56,20 +60,17 @@ class Parser(object):
 
 
     def parse_whitespace(self):
-        return self._consume(r'[ \t]*')
+        return self._consume(r'[ \t\n]*')
 
     def parse_word(self):
         return self._consume(r'[^ \t\n]+')
-
-    def parse_newline(self):
-        return self._consume(r'\n')
 
     def parse_rest_of_line(self):
         return self._consume(r'[^\n]*')
 
     def next_word(self):
         self.parse_whitespace()
-        return self.parse_word() or self.parse_newline()
+        return self.parse_word()
 
     def generate(self):
         while True:

@@ -1,8 +1,9 @@
 from forth.parser import Parser
-from forth.exceptions import *
 
 import inspect
 import types
+
+class ForthError(Exception): pass
 
 
 def _word(name=None):
@@ -25,7 +26,7 @@ def _stackmethod(meth):
     """
     Turns a Python method (NOT a function!) into a stack-consumer. The
     method's arguments are passed in from the stack in the order they pop
-    off the stack, thus from the stack [1, 2, 3], (lambda a,b: a+b) will
+    off the stack, thus from the stack [1, 2, 3], (lambda self,a,b: a+b) will
     receive a=3, b=2.
 
     The return value, if any, is assumed to go on the stack, and an empty
@@ -73,10 +74,6 @@ class Machine(object):
         else:
             raise ForthError('stack underflow')
 
-    @_word('\n')
-    def _finish_eval(self):
-        raise BreakEval()
-
     @_word('.')
     def _stack_pop(self):
         return str(self._pop()) + ' '
@@ -88,29 +85,42 @@ class Machine(object):
     def _add_stackmethod(self, word, func):
         self.words[word] = types.MethodType(_stackmethod(func), self)
 
-    def eval(self, text=''):
-        if self.parser is None:
+    def tokenize(self, text):
+        if self.parser is None or self.parser.is_finished:
             self.parser = Parser(text)
 
-        ret = ''
+        ret = []
         for word in self.parser.generate():
             try:
                 number = int(word)
-                self.data_stack.append(number)
+                ret.append(('NUMBER', number))
                 continue
             except ValueError:
                 pass  # ignore the failed conversion.
 
-            if word in self.words:
-                try:
-                    output = self.words[word]()
+            ret.append(('WORD', word))
+
+        return ret
+
+    def interpret(self, tokens=()):
+        ret = ''
+
+        try:
+            for t, v in tokens:
+                if t == 'NUMBER':
+                    self.data_stack.append(v)
+                elif t == 'WORD':
+                    if v not in self.words:
+                        raise(ForthError('undefined word: %s' % v))
+
+                    output = self.words[v]()
                     if output is not None:
                         ret += output
-                except BreakEval:
-                    break
-                except ForthError as e:
-                    return ret + ' ' + e.message
-            else:
-                return ' undefined word: %s' % word
+        except ForthError as e:
+            self.data_stack = []
+            return ret + ' ? ' + e.message
+
         return ret + ' ok'
 
+    def eval(self, text=''):
+        return self.interpret(self.tokenize(text))
