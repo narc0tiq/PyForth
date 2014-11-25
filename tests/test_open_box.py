@@ -1,9 +1,12 @@
+# coding= utf-8
 """
 Tests the forth.Machine as an open box, i.e., with some knowledge of its
 internals and the ability to dig into them.
 
 See :file:`test_black_box.py` for the more opaque tests.
 """
+from __future__ import unicode_literals
+
 import forth
 
 

@@ -1,3 +1,4 @@
+# coding= utf-8
 """
 Implements a Forth machine, i.e., an object capable of maintaining state and
 responding to valid (and invalid) Forth code passed in from the command line in

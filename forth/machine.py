@@ -1,3 +1,6 @@
+# coding= utf-8
+from __future__ import unicode_literals
+
 from forth.parser import Parser
 
 import inspect
