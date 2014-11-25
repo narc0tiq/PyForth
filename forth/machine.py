@@ -68,8 +68,9 @@ class Machine(object):
         self._add_stackmethod('DROP', lambda self, a: None)
         self._add_stackmethod('TUCK', lambda self, b, a: (b, a, b))
 
-        for name, method in inspect.getmembers(self, predicate=lambda meth: hasattr(meth, 'word')):
-            self.words[method.word] = method
+        for name, method in inspect.getmembers(self, inspect.ismethod):
+            if hasattr(method, 'word'):
+                self.words[method.word] = method
 
     def _pop(self):
         if self.data_stack:
@@ -93,42 +94,52 @@ class Machine(object):
     def _add_stackmethod(self, word, func):
         self.words[word] = types.MethodType(_stackmethod(func), self)
 
-    def tokenize(self, text):
-        if self.parser is None or self.parser.is_finished:
-            self.parser = Parser(text)
+    def eval(self, text=''):
+        self.parser = Parser(text)
 
-        ret = []
-        for word in self.parser.generate():
-            try:
-                number = int(word)
-                ret.append(('NUMBER', number))
-                continue
-            except ValueError:
-                pass  # ignore the failed conversion.
-
-            ret.append(('WORD', word))
-
-        return ret
-
-    def interpret(self, tokens=()):
         ret = ''
-
         try:
-            for t, v in tokens:
-                if t == 'NUMBER':
-                    self.data_stack.append(v)
-                elif t == 'WORD':
-                    if v not in self.words:
-                        raise(ForthError('undefined word: %s' % v))
-
-                    output = self.words[v]()
-                    if output is not None:
-                        ret += output
+            for word in self.parser.generate():
+                token = self.tokenize_one(word)
+                ret += self.interpret_one(*token)
         except ForthError as e:
             self.data_stack = []
             return ret + ' ? ' + e.message
-
         return ret + ' ok'
 
-    def eval(self, text=''):
-        return self.interpret(self.tokenize(text))
+    def tokenize(self, text):
+        self.parser = Parser(text)
+        ret = []
+        for word in self.parser.generate():
+            ret.append(self.tokenize_one(word))
+        return ret
+
+    def tokenize_one(self, word):
+        try:
+            number = int(word)
+            return 'NUMBER', number
+        except ValueError:
+            pass  # ignore the failed conversion.
+
+        if word in self.words:
+            return 'CALL', self.words[word]
+        else:
+            return 'WORD', word
+
+    def interpret(self, tokens=()):
+        ret = ''
+        for t in tokens:
+            ret += self.interpret_one(*t)
+        return ret
+
+    def interpret_one(self, kind, token):
+        if kind == 'NUMBER':
+            self.data_stack.append(token)
+            return ''
+        elif kind == 'CALL':
+            output = token()
+            if output is None:
+                return ''
+            return output
+        elif kind == 'WORD':
+            raise ForthError('undefined word: %s' % token)

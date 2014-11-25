@@ -172,7 +172,7 @@ class TestOpenBoxForth():
         m = forth.Machine()
         interpreted = m.tokenize('23 *')
 
-        assert interpreted == [('NUMBER', 23), ('WORD', '*')]
+        assert interpreted == [('NUMBER', 23), ('CALL', m.words['*'])]
 
     def test_multi_eval(self):
         m = forth.Machine()
@@ -195,9 +195,11 @@ class TestOpenBoxForth():
     def test_interpret(self):
         m = forth.Machine()
         ret = m.interpret([('NUMBER', 42),
-                           ('WORD', '.')])
+                           ('NUMBER', 30),
+                           ('CALL', m.words['.'])])
 
-        assert ret == '42  ok'
+        assert ret == '30 '
+        assert m.data_stack == [42]
 
     def test_error_clears_stack(self):
         m = forth.Machine()
@@ -226,3 +228,6 @@ class TestOpenBoxForth():
         # always including repr(self.data_stack), which it might not do in
         # future. Nonetheless, it's currently sufficiently correct.
         assert repr(m.data_stack) in ret
+
+# TODO: eval(': STAR 42 EMIT ;') and verify the word STAR gets created and
+# returns '*' when called.
