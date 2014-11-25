@@ -28,6 +28,7 @@ class TestTheParser():
         whitespace_string = "   \t\t  \t \t"
         p = forth.Parser(whitespace_string)
 
+        assert p.parse_word() is None
         assert p.parse_whitespace() == whitespace_string
 
         with pytest.raises(StopIteration):

@@ -19,7 +19,7 @@ def _word(name=None):
     """
     def decorator(func):
         if name is None:
-            func.word = func.func_name
+            func.word = func.func_name.upper()
         else:
             func.word = name
         return func
@@ -84,6 +84,11 @@ class Machine(object):
     @_word('.S')
     def _print_stack(self):
         return repr(self.data_stack) + ' '
+
+    @_word()
+    def emit(self):
+        value = self._pop()
+        return unichr(value)
 
     def _add_stackmethod(self, word, func):
         self.words[word] = types.MethodType(_stackmethod(func), self)

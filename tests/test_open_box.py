@@ -210,3 +210,19 @@ class TestOpenBoxForth():
 
         assert 'undefined word' in ret
         assert not m.data_stack
+
+    def test_emit(self):
+        m = forth.Machine()
+        ret = m.eval('42 EMIT')
+
+        assert ret == '* ok'
+
+    def test_printstack(self):
+        m = forth.Machine()
+        ret = m.eval('42 1 2 3 .S')
+
+        assert m.data_stack == [42, 1, 2, 3]
+        # Kind of a fragile test, as it relies on the implementation of .S
+        # always including repr(self.data_stack), which it might not do in
+        # future. Nonetheless, it's currently sufficiently correct.
+        assert repr(m.data_stack) in ret
