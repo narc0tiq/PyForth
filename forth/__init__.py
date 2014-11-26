@@ -22,5 +22,4 @@ curses-like treatment of the terminal as a grid of cells, therefore some words
 (e.g. "PAGE") may do unexpected things (like just printing '\n' * 100
 regardless of the terminal's actual size).
 """
-from forth.parser import Parser
-from forth.machine import Machine, ForthError
+from forth.machine import *
