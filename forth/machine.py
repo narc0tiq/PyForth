@@ -8,6 +8,8 @@ import types
 
 class ForthError(Exception): pass
 
+IMMEDIATE_MODE = 9900
+COMPILE_MODE = 9901
 
 def _word(name=None):
     """
@@ -24,6 +26,19 @@ def _word(name=None):
             func.word = name
         return func
     return decorator
+
+def _compile_word(meth):
+    """
+    Provides some automatic behaviour for @_words which are compile-only words
+    -- namely, gives them a default handler that checks if their instance of
+    :class:`Machine` is in compile mode, and raises ForthError if not.
+    """
+    def decorated(self):
+        if self.mode is not COMPILE_MODE:
+            raise ForthError('compile-only word')
+        return meth(self)
+    decorated.is_compile_word = True
+    return decorated
 
 def _stackmethod(meth):
     """
@@ -54,6 +69,9 @@ class Machine(object):
         self.data_stack = []
         self.parser = None
         self.words = {}
+        self.mode = IMMEDIATE_MODE
+        self.now_compiling = None
+        self.compile_queue = []
 
         self._add_stackmethod('+', lambda self, b, a: a + b)
         self._add_stackmethod('-', lambda self, b, a: a - b)
@@ -91,6 +109,33 @@ class Machine(object):
         value = self._pop()
         return unichr(value)
 
+    @_word(':')
+    def begin_compile(self):
+        try:
+            new_word = self.parser.next_word()
+        except StopIteration:
+            raise ForthError('no name given')
+
+        self.mode = COMPILE_MODE
+        self.now_compiling = new_word
+        self.compile_queue = []
+
+    @_word(';')
+    @_compile_word
+    def end_compile(self):
+        tokens = self.compile_queue
+        new_word = lambda self: self.interpret(tokens)
+        self.words[self.now_compiling] = types.MethodType(new_word, self)
+
+        self.mode = IMMEDIATE_MODE
+        self.now_compiling = None
+        self.compile_queue = []
+
+    @_word('COMPILE_WORD_WITH_OUTPUT_FOR_TESTING')
+    @_compile_word
+    def test_compiler_output(self):
+        return 'SOME OUTPUT!!!'
+
     def _add_stackmethod(self, word, func):
         self.words[word] = types.MethodType(_stackmethod(func), self)
 
@@ -104,8 +149,13 @@ class Machine(object):
                 ret += self.interpret_one(*token)
         except ForthError as e:
             self.data_stack = []
+            self.mode = IMMEDIATE_MODE
             return ret + ' ? ' + e.message
-        return ret + ' ok'
+
+        if self.mode is IMMEDIATE_MODE:
+            return ret + ' ok'
+        elif self.mode is COMPILE_MODE:
+            return ret + ' compiled'
 
     def tokenize(self, text):
         self.parser = Parser(text)
@@ -133,6 +183,12 @@ class Machine(object):
         return ret
 
     def interpret_one(self, kind, token):
+        if self.mode is IMMEDIATE_MODE:
+            return self.interpret_one_immediate(kind, token)
+        elif self.mode is COMPILE_MODE:
+            return self.interpret_one_compile(kind, token)
+
+    def interpret_one_immediate(self, kind, token):
         if kind == 'NUMBER':
             self.data_stack.append(token)
             return ''
@@ -143,3 +199,15 @@ class Machine(object):
             return output
         elif kind == 'WORD':
             raise ForthError('undefined word: %s' % token)
+
+    def interpret_one_compile(self, kind, token):
+        if kind == 'CALL' and hasattr(token, 'is_compile_word') and token.is_compile_word:
+            output = token()
+            if output is None:
+                return ''
+            return output
+        elif kind == 'WORD':
+            raise ForthError('undefined word: %s' % token)
+        else:
+            self.compile_queue.append((kind, token))
+            return ''

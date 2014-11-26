@@ -229,5 +229,71 @@ class TestOpenBoxForth():
         # future. Nonetheless, it's currently sufficiently correct.
         assert repr(m.data_stack) in ret
 
-# TODO: eval(': STAR 42 EMIT ;') and verify the word STAR gets created and
-# returns '*' when called.
+    def test_compile_only_word(self):
+        m = forth.Machine()
+        ret = m.eval(';')
+
+        assert ret == ' ? compile-only word'
+
+    def test_nameless_compile(self):
+        m = forth.Machine()
+        ret = m.eval(':')
+
+        assert ret == ' ? no name given'
+
+    def test_begin_compile(self):
+        m = forth.Machine()
+        ret = m.eval(': STAR')
+
+        assert ret == ' compiled'
+        assert m.mode is forth.COMPILE_MODE
+
+    def test_bad_compile(self):
+        m = forth.Machine()
+        ret = m.eval(': STAR NO-SUCH-WORD')
+
+        assert 'undefined word' in ret
+        assert 'NO-SUCH-WORD' in ret
+        assert m.mode is forth.IMMEDIATE_MODE
+
+    def test_complete_compile(self):
+        m = forth.Machine()
+        ret = m.eval(': STAR 42 EMIT ;')
+
+        assert 'ok' in ret
+        assert 'STAR' in m.words
+        assert m.data_stack == []
+        assert m.mode is forth.IMMEDIATE_MODE
+
+        ret = m.eval('STAR')
+
+        assert ret == '* ok'
+        assert m.data_stack == []
+
+    def test_two_part_compile(self):
+        m = forth.Machine()
+        ret = m.eval(': STAR')
+        ret = m.eval('42 EMIT')
+
+        assert ret == ' compiled'
+        assert m.data_stack == []
+        assert m.mode is forth.COMPILE_MODE
+        assert 'STAR' not in m.words
+
+        ret = m.eval(';')
+        assert ret == ' ok'
+        assert m.data_stack == []
+        assert m.mode is forth.IMMEDIATE_MODE
+        assert 'STAR' in m.words
+
+        ret = m.eval('STAR STAR')
+
+        assert ret == '** ok'
+        assert m.data_stack == []
+
+    def test_compile_word_with_output(self):
+        m = forth.Machine()
+        ret = m.eval(': STAR COMPILE_WORD_WITH_OUTPUT_FOR_TESTING')
+
+        assert 'SOME OUTPUT' in ret
+        assert m.mode is forth.COMPILE_MODE
