@@ -40,28 +40,6 @@ def _compile_word(meth):
     decorated.is_compile_word = True
     return decorated
 
-def _stackmethod(meth):
-    """
-    Turns a Python method (NOT a function!) into a stack-consumer. The
-    method's arguments are passed in from the stack in the order they pop
-    off the stack, thus from the stack [1, 2, 3], (lambda self,a,b: a+b) will
-    receive a=3, b=2.
-
-    The return value, if any, is assumed to go on the stack, and an empty
-    string is assumed for output. If you need output, don't use this!
-    """
-    def decorated(self):
-        num_args = meth.func_code.co_argcount - 1  # ignore leading self arg
-        args = [self._pop() for x in xrange(num_args)]
-        ret = meth(self, *args)
-        if ret is None:
-            return
-        try:
-            self.data_stack.extend(ret)
-        except TypeError:
-            self.data_stack.append(ret)
-    return decorated
-
 
 class Machine(object):
     """ A Forth machine. It has stacks and registers and things. """
@@ -73,22 +51,24 @@ class Machine(object):
         self.now_compiling = None
         self.compile_queue = []
 
-        self._add_stackmethod('+', lambda self, b, a: a + b)
-        self._add_stackmethod('-', lambda self, b, a: a - b)
-        self._add_stackmethod('*', lambda self, b, a: a * b)
-        self._add_stackmethod('/', lambda self, b, a: a / b)
-        self._add_stackmethod('MOD', lambda self, b, a: a % b)
-        self._add_stackmethod('/MOD', lambda self, b, a: reversed(divmod(a, b)))
-        self._add_stackmethod('SWAP', lambda self, b, a: (b, a))
-        self._add_stackmethod('DUP', lambda self, a: (a, a))
-        self._add_stackmethod('OVER', lambda self, b, a: (a, b, a))
-        self._add_stackmethod('ROT', lambda self, c, b, a: (b, c, a))
-        self._add_stackmethod('DROP', lambda self, a: None)
-        self._add_stackmethod('TUCK', lambda self, b, a: (b, a, b))
-
+        # Add decorated member words
         for name, method in inspect.getmembers(self, inspect.ismethod):
             if hasattr(method, 'word'):
                 self.words[method.word] = method
+
+        # Add basic math and stack handling
+        self.add_stackmethod('+', lambda b, a: a + b)
+        self.add_stackmethod('-', lambda b, a: a - b)
+        self.add_stackmethod('*', lambda b, a: a * b)
+        self.add_stackmethod('/', lambda b, a: a / b)
+        self.add_stackmethod('MOD', lambda b, a: a % b)
+        self.add_stackmethod('/MOD', lambda b, a: reversed(divmod(a, b)))
+        self.add_stackmethod('SWAP', lambda b, a: (b, a))
+        self.add_stackmethod('DUP', lambda a: (a, a))
+        self.add_stackmethod('OVER', lambda b, a: (a, b, a))
+        self.add_stackmethod('ROT', lambda c, b, a: (b, c, a))
+        self.add_stackmethod('DROP', lambda a: None)
+        self.add_stackmethod('TUCK', lambda b, a: (b, a, b))
 
     def _pop(self):
         if self.data_stack:
@@ -136,8 +116,30 @@ class Machine(object):
     def test_compiler_output(self):
         return 'SOME OUTPUT!!!'
 
-    def _add_stackmethod(self, word, func):
-        self.words[word] = types.MethodType(_stackmethod(func), self)
+    def add_stackmethod(self, word, func):
+        """
+        Turns a given function `func` into a stack-consumer.
+
+        The function will get its arguments from the stack automatically, in
+        the order they pop off (so from the stack [1, 2] the call to a
+        two-argument function will be func(2, 1). The function's return value
+        (or values) are assumed to go back on the stack.
+
+        There is no provision for a stack-consumer to yield any output text,
+        nor for it to touch any other parts of the :class:`Machine` instance
+        it's a part of.
+        """
+        num_args = func.func_code.co_argcount
+        def stack_helper(self):
+            args = [self._pop() for x in xrange(num_args)]
+            ret = func(*args)
+            if ret is None:
+                return
+            try:
+                self.data_stack.extend(ret)
+            except TypeError:
+                self.data_stack.append(ret)
+        self.words[word] = types.MethodType(stack_helper, self)
 
     def eval(self, text=''):
         self.parser = Parser(text)
