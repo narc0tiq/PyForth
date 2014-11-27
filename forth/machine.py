@@ -11,7 +11,8 @@ class ForthError(Exception): pass
 IMMEDIATE_MODE = 9900
 COMPILE_MODE = 9901
 
-def _word(name=None):
+
+def _word(name):
     """
     Creates a decorator that adds a .word member to its given func, which may
     then be inspected for by the :class:`Machine`'s __init__ method. Note that
@@ -20,18 +21,16 @@ def _word(name=None):
     instead.
     """
     def decorator(func):
-        if name is None:
-            func.word = func.func_name.upper()
-        else:
-            func.word = name
+        func.word = name
         return func
     return decorator
 
+
 def _compile_word(meth):
     """
-    Provides some automatic behaviour for @_words which are compile-only words
-    -- namely, gives them a default handler that checks if their instance of
-    :class:`Machine` is in compile mode, and raises ForthError if not.
+    Provides some automatic behaviour for :func:`@_word`s which are
+    compile-only words: raising an error if the :class:`Machine` is not in
+    compile mode.
     """
     def decorated(self):
         if self.mode is not COMPILE_MODE:
@@ -84,7 +83,7 @@ class Machine(object):
     def _print_stack(self):
         return repr(self.data_stack) + ' '
 
-    @_word()
+    @_word('EMIT')
     def emit(self):
         value = self._pop()
         return unichr(value)
