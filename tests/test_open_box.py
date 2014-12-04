@@ -8,6 +8,7 @@ See :file:`test_black_box.py` for the more opaque tests.
 from __future__ import unicode_literals
 
 import forth
+import pytest
 
 
 class TestOpenBoxForth():
@@ -276,13 +277,15 @@ class TestOpenBoxForth():
         ret = m.eval('42 EMIT')
 
         assert ret == ' compiled'
-        assert m.data_stack == []
+        assert 'BEGIN_COMPILE' in m.data_stack
+        assert m.compile_stack == [':']
         assert m.mode is forth.COMPILE_MODE
         assert 'STAR' not in m.words
 
         ret = m.eval(';')
         assert ret == ' ok'
         assert m.data_stack == []
+        assert not m.compile_stack
         assert m.mode is forth.IMMEDIATE_MODE
         assert 'STAR' in m.words
 
@@ -297,3 +300,72 @@ class TestOpenBoxForth():
 
         assert 'SOME OUTPUT' in ret
         assert m.mode is forth.COMPILE_MODE
+
+    def test_compile_only_do(self):
+        m = forth.Machine()
+        ret = m.eval('5 0 DO 42 EMIT LOOP')
+
+        assert 'compile-only' in ret
+        assert '*' not in ret
+
+    def test_unclosed_do(self):
+        m = forth.Machine()
+        ret = m.eval(': STARS 0 DO 42 EMIT ;')
+
+        assert 'unclosed DO' in ret
+        assert '*' not in ret
+
+    def test_unopened_do(self):
+        m = forth.Machine()
+        ret = m.eval(': STARS 42 EMIT LOOP ;')
+
+        assert 'missing DO' in ret
+        assert '*' not in ret
+
+    def test_underflow_do(self):
+        m = forth.Machine()
+        ret = m.eval(': STARS 0 DO 42 EMIT LOOP ; STARS')
+
+        assert 'underflow' in ret
+        assert '*' not in ret
+
+    def test_loop(self):
+        m = forth.Machine()
+        ret = m.eval(': STARS 0 DO 42 EMIT LOOP ; 5 STARS')
+
+        assert '*****' in ret
+        assert 'ok' in ret
+
+    def test_unknown_token_type(self):
+        m = forth.Machine()
+        with pytest.raises(forth.ForthError) as excinfo:
+            m.interpret_one_immediate('BAD-TOKEN', 'oops')
+
+        assert 'unknown token' in str(excinfo.value)
+
+    def test_wrong_loop_close(self):
+        m = forth.Machine()
+        ret = m.eval(': BLAH')
+
+        m.compile_stack.append('OOPSIE')
+        ret = m.eval('LOOP')
+
+        assert 'unclosed OOPSIE' in ret
+
+    def test_multi_loop(self):
+        m = forth.Machine()
+        ret = m.eval(': CR 10 EMIT ;\n'
+                     ': STAR 42 EMIT ;\n'
+                     ': STARS 0 DO STAR LOOP ;\n'
+                     ': STAR-LINES 0 DO 5 STARS CR LOOP ;\n'
+                     '2 STAR-LINES')
+
+        assert ret == '*****\n*****\n ok'
+
+        m = forth.Machine()
+        ret = m.eval(': CR 10 EMIT ;\n'
+                     ': STAR-LINES 0 DO 5 0 DO 42 EMIT LOOP CR LOOP ;\n'
+                     '2 STAR-LINES')
+
+        assert ret == '*****\n*****\n ok'
+

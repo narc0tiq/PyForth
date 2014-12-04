@@ -48,7 +48,7 @@ class Machine(object):
         self.words = {}
         self.mode = IMMEDIATE_MODE
         self.now_compiling = None
-        self.compile_queue = []
+        self.compile_stack = []
 
         # Add decorated member words
         for name, method in inspect.getmembers(self, inspect.ismethod):
@@ -69,11 +69,25 @@ class Machine(object):
         self.add_stackmethod('DROP', lambda a: None)
         self.add_stackmethod('TUCK', lambda b, a: (b, a, b))
 
+    def _push(self, val):
+        self.data_stack.append(val)
+
+    def _push_all(self, ls):
+        self.data_stack.extend(ls)
+
     def _pop(self):
         if self.data_stack:
             return self.data_stack.pop()
         else:
             raise ForthError('stack underflow')
+
+    def _pop_until(self, predicate):
+        ret = []
+        while True:
+            val = self._pop()
+            ret.append(val)
+            if predicate(val):
+                return ret
 
     @_word('.')
     def _stack_pop(self):
@@ -97,18 +111,40 @@ class Machine(object):
 
         self.mode = COMPILE_MODE
         self.now_compiling = new_word
-        self.compile_queue = []
+        self.compile_stack = [':']
+        self._push('BEGIN_COMPILE')
 
     @_word(';')
     @_compile_word
     def end_compile(self):
-        tokens = self.compile_queue
+        opened = self.compile_stack.pop()
+        if opened != ':':
+            raise ForthError('unclosed %s' % opened)
+
+        tokens = self._pop_until(lambda tok: tok == 'BEGIN_COMPILE')[-2::-1]
         new_word = lambda self: self.interpret(tokens)
         self.words[self.now_compiling] = types.MethodType(new_word, self)
 
         self.mode = IMMEDIATE_MODE
         self.now_compiling = None
-        self.compile_queue = []
+
+    @_word('DO')
+    @_compile_word
+    def begin_do_loop(self):
+        self.compile_stack.append('DO')
+        self._push('DO')
+
+    @_word('LOOP')
+    @_compile_word
+    def end_do_loop(self):
+        opened = self.compile_stack.pop()
+        if opened == ':':
+            raise ForthError('missing DO')
+        if opened != 'DO':
+            raise ForthError('unclosed %s' % opened)
+
+        loop_tokens = self._pop_until(lambda tok: tok == 'DO')[-2::-1]
+        self._push(('LOOP', loop_tokens))
 
     @_word('COMPILE_WORD_WITH_OUTPUT_FOR_TESTING')
     @_compile_word
@@ -135,9 +171,9 @@ class Machine(object):
             if ret is None:
                 return
             try:
-                self.data_stack.extend(ret)
+                self._push_all(ret)
             except TypeError:
-                self.data_stack.append(ret)
+                self._push(ret)
         self.words[word] = types.MethodType(stack_helper, self)
 
     def eval(self, text=''):
@@ -189,17 +225,31 @@ class Machine(object):
         elif self.mode is COMPILE_MODE:
             return self.interpret_one_compile(kind, token)
 
+    def interpret_loop(self, tokens):
+        index = self._pop()
+        loop_end = self._pop()
+
+        ret = ''
+        for i in xrange(index, loop_end):
+            ret += self.interpret(tokens)
+
+        return ret
+
     def interpret_one_immediate(self, kind, token):
         if kind == 'NUMBER':
-            self.data_stack.append(token)
+            self._push(token)
             return ''
         elif kind == 'CALL':
             output = token()
             if output is None:
                 return ''
             return output
+        elif kind == 'LOOP':
+            return self.interpret_loop(token)
         elif kind == 'WORD':
             raise ForthError('undefined word: %s' % token)
+        else:
+            raise ForthError('unknown token type: %s' % kind)
 
     def interpret_one_compile(self, kind, token):
         if kind == 'CALL' and hasattr(token, 'is_compile_word') and token.is_compile_word:
@@ -210,5 +260,5 @@ class Machine(object):
         elif kind == 'WORD':
             raise ForthError('undefined word: %s' % token)
         else:
-            self.compile_queue.append((kind, token))
+            self._push((kind, token))
             return ''
