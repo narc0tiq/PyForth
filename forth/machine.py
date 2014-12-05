@@ -102,12 +102,12 @@ class Machine(object):
         return ' '.join(sorted(self.words.keys()))
 
     @_word('EMIT')
-    def emit(self):
+    def _emit(self):
         value = self._pop()
         return unichr(value)
 
     @_word(':')
-    def begin_compile(self):
+    def _begin_compile(self):
         try:
             new_word = self.parser.next_word()
         except StopIteration:
@@ -116,16 +116,16 @@ class Machine(object):
         self.mode = COMPILE_MODE
         self.now_compiling = new_word
         self.compile_stack = [':']
-        self._push('BEGIN_COMPILE')
+        self._push(':')
 
     @_word(';')
     @_compile_word
-    def end_compile(self):
+    def _end_compile(self):
         opened = self.compile_stack.pop()
         if opened != ':':
             raise ForthError('unclosed %s' % opened)
 
-        tokens = self._pop_until(lambda tok: tok == 'BEGIN_COMPILE')[-2::-1]
+        tokens = self._pop_until(lambda tok: tok == ':')[-2::-1]
         new_word = lambda self: self.interpret(tokens)
         self.words[self.now_compiling] = types.MethodType(new_word, self)
 
@@ -134,13 +134,13 @@ class Machine(object):
 
     @_word('DO')
     @_compile_word
-    def begin_do_loop(self):
+    def _begin_do_loop(self):
         self.compile_stack.append('DO')
         self._push('DO')
 
     @_word('LOOP')
     @_compile_word
-    def end_do_loop(self):
+    def _end_do_loop(self):
         opened = self.compile_stack.pop()
         if opened == ':':
             raise ForthError('missing DO')
@@ -149,6 +149,35 @@ class Machine(object):
 
         loop_tokens = self._pop_until(lambda tok: tok == 'DO')[-2::-1]
         self._push(('LOOP', loop_tokens))
+
+    @_word('IF')
+    @_compile_word
+    def _if(self):
+        self.compile_stack.append('IF')
+        self._push('IF')
+
+    @_word('ELSE')
+    @_compile_word
+    def _else(self):
+        if self.compile_stack[-1] != 'IF':
+            raise ForthError('missing IF')
+        self.compile_stack.append('ELSE')
+        self._push('ELSE')
+
+    @_word('THEN')
+    @_compile_word
+    def _then(self):
+        tors = self.compile_stack[-1]
+        if tors != 'IF' and tors != 'ELSE':
+            raise ForthError('missing IF')
+        tors = self.compile_stack.pop()
+        if tors == 'ELSE':
+            false_tokens = self._pop_until(lambda tok: tok == 'ELSE')[-2::-1]
+            tors = self.compile_stack.pop()
+        assert tors == 'IF' # I can't imagine how it would fail to be.
+        true_tokens = self._pop_until(lambda tok: tok == 'IF')[-2::-1]
+
+        self._push(('BRANCH', (true_tokens, false_tokens)))
 
     @_word('COMPILE_WORD_WITH_OUTPUT_FOR_TESTING')
     @_compile_word
@@ -239,6 +268,17 @@ class Machine(object):
 
         return ret
 
+    def interpret_branch(self, true_tokens, false_tokens):
+        testvar = self._pop()
+
+        ret = ''
+        if testvar:
+            ret += self.interpret(true_tokens)
+        else:
+            ret += self.interpret(false_tokens)
+
+        return ret
+
     def interpret_one_immediate(self, kind, token):
         if kind == 'NUMBER':
             self._push(token)
@@ -250,6 +290,8 @@ class Machine(object):
             return output
         elif kind == 'LOOP':
             return self.interpret_loop(token)
+        elif kind == 'BRANCH':
+            return self.interpret_branch(*token)
         elif kind == 'WORD':
             raise ForthError('undefined word: %s' % token)
         else:

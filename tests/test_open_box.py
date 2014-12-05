@@ -277,7 +277,7 @@ class TestOpenBoxForth():
         ret = m.eval('42 EMIT')
 
         assert ret == ' compiled'
-        assert 'BEGIN_COMPILE' in m.data_stack
+        assert ':' in m.data_stack
         assert m.compile_stack == [':']
         assert m.mode is forth.COMPILE_MODE
         assert 'STAR' not in m.words
@@ -375,3 +375,43 @@ class TestOpenBoxForth():
 
         for word in m.words.keys():
             assert word in ret
+
+    def test_compile_only_if_parts(self):
+        m = forth.Machine()
+
+        assert 'compile-only' in m.eval('IF')
+        assert 'compile-only' in m.eval('ELSE')
+        assert 'compile-only' in m.eval('THEN')
+
+    def test_unclosed_if_else(self):
+        m = forth.Machine()
+        assert 'unclosed IF' in m.eval(': TEST IF ;')
+        assert 'unclosed ELSE' in m.eval(': TEST IF ELSE ;')
+
+    def test_unopened_if(self):
+        m = forth.Machine()
+
+        assert 'missing IF' in m.eval(': TEST ELSE')
+        assert 'missing IF' in m.eval(': TEST THEN')
+
+    def test_if_else_on_stack(self):
+        m = forth.Machine()
+        ret = m.eval(': TEST IF ELSE')
+
+        assert 'compiled' in ret
+        assert 'IF' in m.compile_stack
+        assert 'ELSE' in m.compile_stack
+        assert 'IF' in m.data_stack
+        assert 'ELSE' in m.data_stack
+
+    def test_if(self):
+        m = forth.Machine()
+        ret = m.eval(': TEST IF 42 ELSE 33 THEN . ;')
+
+        assert ret == ' ok'
+        assert 'TEST' in m.words
+        assert not m.data_stack
+        assert not m.compile_stack
+
+        assert m.eval('1 TEST 0 TEST') == '42 33  ok'
+        assert 'stack underflow' in m.eval('TEST')
