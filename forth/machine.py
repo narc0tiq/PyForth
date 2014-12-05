@@ -171,6 +171,7 @@ class Machine(object):
         if tors != 'IF' and tors != 'ELSE':
             raise ForthError('missing IF')
         tors = self.compile_stack.pop()
+        false_tokens = ()
         if tors == 'ELSE':
             false_tokens = self._pop_until(lambda tok: tok == 'ELSE')[-2::-1]
             tors = self.compile_stack.pop()

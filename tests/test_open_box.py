@@ -415,3 +415,16 @@ class TestOpenBoxForth():
 
         assert m.eval('1 TEST 0 TEST') == '42 33  ok'
         assert 'stack underflow' in m.eval('TEST')
+
+    def test_empty_if(self):
+        m = forth.Machine()
+        ret = m.eval(': TEST IF ELSE THEN ; 1 TEST')
+
+        assert ret == ' ok'
+        assert 'TEST' in m.words
+        assert not m.data_stack
+        assert not m.compile_stack
+
+        ret = m.eval(': TEST IF 42 EMIT THEN ; 1 TEST 0 TEST')
+        assert ret == '* ok'
+
