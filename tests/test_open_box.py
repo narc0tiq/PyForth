@@ -369,3 +369,9 @@ class TestOpenBoxForth():
 
         assert ret == '*****\n*****\n ok'
 
+    def test_words(self):
+        m = forth.Machine()
+        ret = m.eval('WORDS')
+
+        for word in m.words.keys():
+            assert word in ret

@@ -97,6 +97,10 @@ class Machine(object):
     def _print_stack(self):
         return repr(self.data_stack) + ' '
 
+    @_word('WORDS')
+    def _print_words(self):
+        return ' '.join(sorted(self.words.keys()))
+
     @_word('EMIT')
     def emit(self):
         value = self._pop()
