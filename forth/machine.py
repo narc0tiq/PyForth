@@ -138,16 +138,28 @@ class Machine(object):
         self.compile_stack.append('DO')
         self._push('DO')
 
-    @_word('LOOP')
-    @_compile_word
-    def _end_do_loop(self):
+    def _acquire_loop_contents(self):
         opened = self.compile_stack.pop()
         if opened == ':':
             raise ForthError('missing DO')
         if opened != 'DO':
             raise ForthError('unclosed %s' % opened)
 
-        loop_tokens = self._pop_until(lambda tok: tok == 'DO')[-2::-1]
+        return self._pop_until(lambda tok: tok == 'DO')[-2::-1]
+
+    @_word('LOOP')
+    @_compile_word
+    def _end_do_loop(self):
+        loop_tokens = self._acquire_loop_contents()
+        # HAX? Loops end with a number defining the step size --
+        # DO..LOOP implies a step size of 1.
+        loop_tokens.append(('NUMBER', 1))
+        self._push(('LOOP', loop_tokens))
+
+    @_word('+LOOP')
+    @_compile_word
+    def _end_plus_loop(self):
+        loop_tokens = self._acquire_loop_contents()
         self._push(('LOOP', loop_tokens))
 
     @_word('IF')
@@ -264,8 +276,9 @@ class Machine(object):
         loop_end = self._pop()
 
         ret = ''
-        for i in xrange(index, loop_end):
+        while index < loop_end:
             ret += self.interpret(tokens)
+            index += self._pop()
 
         return ret
 

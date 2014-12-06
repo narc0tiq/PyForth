@@ -336,6 +336,15 @@ class TestOpenBoxForth():
         assert '*****' in ret
         assert 'ok' in ret
 
+    def test_plus_loop(self):
+        m = forth.Machine()
+
+        assert 'missing DO' in m.eval(': OOPS +LOOP ;')
+        assert 'underflow' in m.eval(': OOPS 2 0 DO 42 EMIT +LOOP ; OOPS')
+        ret = m.eval(': JUMP-TWO DO 42 EMIT 2 +LOOP ; 4 0 JUMP-TWO')
+
+        assert ret == '** ok'
+
     def test_unknown_token_type(self):
         m = forth.Machine()
         with pytest.raises(forth.ForthError) as excinfo:
