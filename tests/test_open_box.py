@@ -474,7 +474,7 @@ class TestOpenBoxForth():
                      2DUP == .
                      2DUP != .''')
 
-        assert ret == '1 1 0 0 0 1  ok'
+        assert ret == '-1 -1 0 0 0 -1  ok'
 
     def test_leave(self):
         m = forth.Machine()
@@ -510,3 +510,9 @@ class TestOpenBoxForth():
                      ; TEST''')
 
         assert ret == '0 1 2 3 4  ok'
+
+    def test_invert(self):
+        m = forth.Machine()
+        ret = m.eval('0 INVERT . 1 INVERT . -1 INVERT .')
+
+        assert ret == '-1 -2 0  ok'

@@ -65,12 +65,14 @@ class Machine(object):
         self.add_stackmethod('MOD', lambda b, a: a % b)
         self.add_stackmethod('/MOD', lambda b, a: reversed(divmod(a, b)))
 
-        self.add_stackmethod('>', lambda b, a: 1 if a > b else 0)
-        self.add_stackmethod('>=', lambda b, a: 1 if a >= b else 0)
-        self.add_stackmethod('<', lambda b, a: 1 if a < b else 0)
-        self.add_stackmethod('<=', lambda b, a: 1 if a <= b else 0)
-        self.add_stackmethod('==', lambda b, a: 1 if a == b else 0)
-        self.add_stackmethod('!=', lambda b, a: 1 if a != b else 0)
+        self.add_stackmethod('>', lambda b, a: -1 if a > b else 0)
+        self.add_stackmethod('>=', lambda b, a: -1 if a >= b else 0)
+        self.add_stackmethod('<', lambda b, a: -1 if a < b else 0)
+        self.add_stackmethod('<=', lambda b, a: -1 if a <= b else 0)
+        self.add_stackmethod('==', lambda b, a: -1 if a == b else 0)
+        self.add_stackmethod('!=', lambda b, a: -1 if a != b else 0)
+
+        self.add_stackmethod('INVERT', lambda a: ~a)
 
         self.add_stackmethod('SWAP', lambda b, a: (b, a))
         self.add_stackmethod('DUP', lambda a: (a, a))
