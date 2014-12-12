@@ -8,6 +8,7 @@ import types
 
 class ForthError(Exception): pass
 class ImmediateQuit(ForthError): pass
+class LeaveLoop(ForthError): pass
 
 IMMEDIATE_MODE = 9900
 COMPILE_MODE = 9901
@@ -63,9 +64,22 @@ class Machine(object):
         self.add_stackmethod('/', lambda b, a: a / b)
         self.add_stackmethod('MOD', lambda b, a: a % b)
         self.add_stackmethod('/MOD', lambda b, a: reversed(divmod(a, b)))
+
+        self.add_stackmethod('>', lambda b, a: 1 if a > b else 0)
+        self.add_stackmethod('>=', lambda b, a: 1 if a >= b else 0)
+        self.add_stackmethod('<', lambda b, a: 1 if a < b else 0)
+        self.add_stackmethod('<=', lambda b, a: 1 if a <= b else 0)
+        self.add_stackmethod('==', lambda b, a: 1 if a == b else 0)
+        self.add_stackmethod('!=', lambda b, a: 1 if a != b else 0)
+
         self.add_stackmethod('SWAP', lambda b, a: (b, a))
         self.add_stackmethod('DUP', lambda a: (a, a))
         self.add_stackmethod('OVER', lambda b, a: (a, b, a))
+
+        self.add_stackmethod('2DUP', lambda b, a: (a, b, a, b))
+        self.add_stackmethod('2SWAP', lambda d, c, b, a: (c, d, a, b))
+        self.add_stackmethod('2OVER', lambda d, c, b, a: (a, b, c, d, a, b))
+
         self.add_stackmethod('ROT', lambda c, b, a: (b, c, a))
         self.add_stackmethod('DROP', lambda a: None)
         self.add_stackmethod('TUCK', lambda b, a: (b, a, b))
@@ -202,6 +216,11 @@ class Machine(object):
     def interpreter_quit(self):
         raise ImmediateQuit()
 
+    @_word('LEAVE')
+    @_compile_word
+    def compile_leave_loop(self):
+        self._push(('LEAVE', None))
+
     def add_stackmethod(self, word, func):
         """
         Turns a given function `func` into a stack-consumer.
@@ -283,9 +302,12 @@ class Machine(object):
         loop_end = self._pop()
 
         ret = ''
-        while index < loop_end:
-            ret += self.interpret(tokens)
-            index += self._pop()
+        try:
+            while index < loop_end:
+                ret += self.interpret(tokens)
+                index += self._pop()
+        except LeaveLoop:
+            pass
 
         return ret
 
@@ -315,6 +337,8 @@ class Machine(object):
             return self.interpret_branch(*token)
         elif kind == 'WORD':
             raise ForthError('undefined word: %s' % token)
+        elif kind == 'LEAVE':
+            raise LeaveLoop('not looping')
         else:
             raise ForthError('unknown token type: %s' % kind)
 

@@ -444,3 +444,53 @@ class TestOpenBoxForth():
         assert ret == ''
         assert 4 in m.data_stack
         assert 5 not in m.data_stack
+
+    def test_twin_operators(self):
+        m = forth.Machine()
+        ret = m.eval('10 7 2DUP')
+
+        assert ret == ' ok'
+        assert m.data_stack == [10, 7, 10, 7]
+
+        m = forth.Machine()
+        ret = m.eval('1 2 3 4 2SWAP')
+
+        assert ret == ' ok'
+        assert m.data_stack == [3, 4, 1, 2]
+
+        m = forth.Machine()
+        ret = m.eval('1 2 3 4 2OVER')
+
+        assert ret == ' ok'
+        assert m.data_stack == [1, 2, 3, 4, 1, 2]
+
+    def test_comparisons(self):
+        m = forth.Machine()
+        ret = m.eval('''10 7
+                     2DUP > .
+                     2DUP >= .
+                     2DUP < .
+                     2DUP <= .
+                     2DUP == .
+                     2DUP != .''')
+
+        assert ret == '1 1 0 0 0 1  ok'
+
+    def test_leave(self):
+        m = forth.Machine()
+        ret = m.eval(': TEST LEAVE ; TEST')
+
+        assert '? not looping' in ret
+
+        ret = m.eval(''': TEST
+                     10 5
+                     2 0 DO
+                        DUP
+                        7 > IF
+                            LEAVE
+                        THEN
+                        .
+                     LOOP ;
+                     TEST''')
+
+        assert ret == '5  ok'
