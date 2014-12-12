@@ -194,9 +194,38 @@ class Machine(object):
         if opened != 'BEGIN':
             raise ForthError('unclosed %s' % opened)
 
+        # Use the Forth machine itself to invert the UNTIL into a WHILE:
+        self.interpret(self.tokenize('IF 0 ELSE -1 THEN'))
+
         begin_tokens = self._pop_until(lambda tok: tok == 'BEGIN')[-2::-1]
 
         self._push(('WHILE', (begin_tokens,())))
+
+    @_word('WHILE')
+    @_compile_word
+    def _mid_while_loop(self):
+        opened = self.compile_stack[-1]
+        if opened == ':':
+            raise ForthError('missing BEGIN')
+        if opened != 'BEGIN':
+            raise ForthError('unclosed %s' % opened)
+        self.compile_stack.append('WHILE')
+        self._push('WHILE')
+
+    @_word('REPEAT')
+    @_compile_word
+    def _end_while_loop(self):
+        opened = self.compile_stack.pop()
+        if opened == ':':
+            raise ForthError('missing WHILE')
+        if opened != 'WHILE':
+            raise ForthError('unclosed %s' % opened)
+        assert self.compile_stack.pop() == 'BEGIN'
+
+        while_tokens = self._pop_until(lambda tok: tok == 'WHILE')[-2::-1]
+        begin_tokens = self._pop_until(lambda tok: tok == 'BEGIN')[-2::-1]
+
+        self._push(('WHILE', (begin_tokens, while_tokens)))
 
     @_word('IF')
     @_compile_word
@@ -348,7 +377,7 @@ class Machine(object):
         while True:
             ret += self.interpret(begin_tokens)
             testvar = self._pop()
-            if testvar:
+            if not testvar:
                 break
             ret += self.interpret(while_tokens)
 

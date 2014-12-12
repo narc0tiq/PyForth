@@ -516,3 +516,24 @@ class TestOpenBoxForth():
         ret = m.eval('0 INVERT . 1 INVERT . -1 INVERT .')
 
         assert ret == '-1 -2 0  ok'
+
+    def test_begin_while_repeat(self):
+        m = forth.Machine()
+        assert 'compile-only' in m.eval('BEGIN')
+        assert 'compile-only' in m.eval('WHILE')
+        assert 'compile-only' in m.eval('REPEAT')
+        assert 'missing BEGIN' in m.eval(': TEST WHILE')
+        assert 'missing WHILE' in m.eval(': TEST REPEAT')
+        assert 'unclosed DO' in m.eval(': TEST DO WHILE')
+        assert 'unclosed DO' in m.eval(': TEST DO REPEAT')
+
+        ret = m.eval(''': TEST 0
+                     BEGIN
+                        DUP
+                     4 < WHILE
+                        DUP .
+                        1 +
+                     REPEAT
+                     ; TEST''')
+
+        assert ret == '0 1 2 3  ok'
