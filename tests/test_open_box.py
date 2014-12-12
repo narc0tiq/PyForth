@@ -437,3 +437,10 @@ class TestOpenBoxForth():
         ret = m.eval(': TEST IF 42 EMIT THEN ; 1 TEST 0 TEST')
         assert ret == '* ok'
 
+    def test_quit(self):
+        m = forth.Machine()
+        ret = m.eval('4 QUIT 5')
+
+        assert ret == ''
+        assert 4 in m.data_stack
+        assert 5 not in m.data_stack

@@ -7,6 +7,7 @@ import inspect
 import types
 
 class ForthError(Exception): pass
+class ImmediateQuit(ForthError): pass
 
 IMMEDIATE_MODE = 9900
 COMPILE_MODE = 9901
@@ -197,6 +198,10 @@ class Machine(object):
     def test_compiler_output(self):
         return 'SOME OUTPUT!!!'
 
+    @_word('QUIT')
+    def interpreter_quit(self):
+        raise ImmediateQuit()
+
     def add_stackmethod(self, word, func):
         """
         Turns a given function `func` into a stack-consumer.
@@ -230,6 +235,8 @@ class Machine(object):
             for word in self.parser.generate():
                 token = self.tokenize_one(word)
                 ret += self.interpret_one(*token)
+        except ImmediateQuit:
+            return ret
         except ForthError as e:
             self.data_stack = []
             self.mode = IMMEDIATE_MODE
