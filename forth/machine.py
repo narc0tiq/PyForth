@@ -153,7 +153,7 @@ class Machine(object):
         self.compile_stack.append('DO')
         self._push('DO')
 
-    def _acquire_loop_contents(self):
+    def _acquire_do_loop_contents(self):
         opened = self.compile_stack.pop()
         if opened == ':':
             raise ForthError('missing DO')
@@ -165,7 +165,7 @@ class Machine(object):
     @_word('LOOP')
     @_compile_word
     def _end_do_loop(self):
-        loop_tokens = self._acquire_loop_contents()
+        loop_tokens = self._acquire_do_loop_contents()
         # HAX? Loops end with a number defining the step size --
         # DO..LOOP implies a step size of 1.
         loop_tokens.append(('NUMBER', 1))
@@ -174,8 +174,27 @@ class Machine(object):
     @_word('+LOOP')
     @_compile_word
     def _end_plus_loop(self):
-        loop_tokens = self._acquire_loop_contents()
+        loop_tokens = self._acquire_do_loop_contents()
         self._push(('LOOP', loop_tokens))
+
+    @_word('BEGIN')
+    @_compile_word
+    def _begin_while_loop(self):
+        self.compile_stack.append('BEGIN')
+        self._push('BEGIN')
+
+    @_word('UNTIL')
+    @_compile_word
+    def _end_until_loop(self):
+        opened = self.compile_stack.pop()
+        if opened == ':':
+            raise ForthError('missing BEGIN')
+        if opened != 'BEGIN':
+            raise ForthError('unclosed %s' % opened)
+
+        begin_tokens = self._pop_until(lambda tok: tok == 'BEGIN')[-2::-1]
+
+        self._push(('WHILE', (begin_tokens,())))
 
     @_word('IF')
     @_compile_word
@@ -322,6 +341,17 @@ class Machine(object):
 
         return ret
 
+    def interpret_while(self, begin_tokens, while_tokens):
+        ret = ''
+        while True:
+            ret += self.interpret(begin_tokens)
+            testvar = self._pop()
+            if testvar:
+                break
+            ret += self.interpret(while_tokens)
+
+        return ret
+
     def interpret_one_immediate(self, kind, token):
         if kind == 'NUMBER':
             self._push(token)
@@ -335,6 +365,8 @@ class Machine(object):
             return self.interpret_loop(token)
         elif kind == 'BRANCH':
             return self.interpret_branch(*token)
+        elif kind == 'WHILE':
+            return self.interpret_while(*token)
         elif kind == 'WORD':
             raise ForthError('undefined word: %s' % token)
         elif kind == 'LEAVE':

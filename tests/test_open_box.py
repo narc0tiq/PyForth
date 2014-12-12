@@ -478,9 +478,8 @@ class TestOpenBoxForth():
 
     def test_leave(self):
         m = forth.Machine()
-        ret = m.eval(': TEST LEAVE ; TEST')
-
-        assert '? not looping' in ret
+        assert 'compile-only' in m.eval('LEAVE')
+        assert '? not looping' in m.eval(': TEST LEAVE ; TEST')
 
         ret = m.eval(''': TEST
                      10 5
@@ -494,3 +493,20 @@ class TestOpenBoxForth():
                      TEST''')
 
         assert ret == '5  ok'
+
+    def test_begin_until(self):
+        m = forth.Machine()
+        assert 'compile-only' in m.eval('BEGIN')
+        assert 'compile-only' in m.eval('UNTIL')
+        assert 'missing BEGIN' in m.eval(': TEST UNTIL')
+        assert 'unclosed DO' in m.eval(': TEST DO UNTIL')
+
+        ret = m.eval(''': TEST 0
+                     BEGIN
+                        DUP .
+                        1 +
+                        DUP
+                     4 > UNTIL
+                     ; TEST''')
+
+        assert ret == '0 1 2 3 4  ok'
