@@ -14,19 +14,18 @@ IMMEDIATE_MODE = 9900
 COMPILE_MODE = 9901
 
 
-def _word(name):
+def _word(*names):
     """
-    Creates a decorator that adds a .word member to its given func, which may
+    Creates a decorator that adds a .words member to its given func, which may
     then be inspected for by the :class:`Machine`'s __init__ method. Note that
     if you already have an instance of :class:`Machine`, it's too late to
     decorate and you should call its :method:`Machine._add_stackmethod`
     instead.
     """
     def decorator(func):
-        func.word = name
+        func.words = names
         return func
     return decorator
-
 
 def _compile_word(meth):
     """
@@ -50,12 +49,13 @@ class Machine(object):
         self.words = {}
         self.mode = IMMEDIATE_MODE
         self.now_compiling = None
-        self.compile_stack = []
+        self.return_stack = []
 
         # Add decorated member words
         for name, method in inspect.getmembers(self, inspect.ismethod):
-            if hasattr(method, 'word'):
-                self.words[method.word] = method
+            if hasattr(method, 'words'):
+                for word in method.words:
+                    self.words[word] = method
 
         # Add basic math and stack handling
         self.add_stackmethod('+', lambda b, a: a + b)
@@ -106,8 +106,17 @@ class Machine(object):
             if predicate(val):
                 return ret
 
+    def _return_push(self, val):
+        self.return_stack.append(val)
+
+    def _return_pop(self):
+        if self.return_stack:
+            return self.return_stack.pop()
+        else:
+            raise ForthError('return stack underflow')
+
     @_word('.')
-    def _stack_pop(self):
+    def _print_pop(self):
         return str(self._pop()) + ' '
 
     @_word('.S')
@@ -132,13 +141,13 @@ class Machine(object):
 
         self.mode = COMPILE_MODE
         self.now_compiling = new_word
-        self.compile_stack = [':']
+        self._return_push(':')
         self._push(':')
 
     @_word(';')
     @_compile_word
     def _end_compile(self):
-        opened = self.compile_stack.pop()
+        opened = self._return_pop()
         if opened != ':':
             raise ForthError('unclosed %s' % opened)
 
@@ -152,11 +161,11 @@ class Machine(object):
     @_word('DO')
     @_compile_word
     def _begin_do_loop(self):
-        self.compile_stack.append('DO')
+        self._return_push('DO')
         self._push('DO')
 
     def _acquire_do_loop_contents(self):
-        opened = self.compile_stack.pop()
+        opened = self._return_pop()
         if opened == ':':
             raise ForthError('missing DO')
         if opened != 'DO':
@@ -182,13 +191,13 @@ class Machine(object):
     @_word('BEGIN')
     @_compile_word
     def _begin_while_loop(self):
-        self.compile_stack.append('BEGIN')
+        self._return_push('BEGIN')
         self._push('BEGIN')
 
     @_word('UNTIL')
     @_compile_word
     def _end_until_loop(self):
-        opened = self.compile_stack.pop()
+        opened = self._return_pop()
         if opened == ':':
             raise ForthError('missing BEGIN')
         if opened != 'BEGIN':
@@ -204,23 +213,25 @@ class Machine(object):
     @_word('WHILE')
     @_compile_word
     def _mid_while_loop(self):
-        opened = self.compile_stack[-1]
+        opened = self._return_pop()
         if opened == ':':
             raise ForthError('missing BEGIN')
         if opened != 'BEGIN':
             raise ForthError('unclosed %s' % opened)
-        self.compile_stack.append('WHILE')
+        self._return_push(opened)
+        self._return_push('WHILE')
         self._push('WHILE')
 
     @_word('REPEAT')
     @_compile_word
     def _end_while_loop(self):
-        opened = self.compile_stack.pop()
+        opened = self._return_pop()
         if opened == ':':
             raise ForthError('missing WHILE')
         if opened != 'WHILE':
             raise ForthError('unclosed %s' % opened)
-        assert self.compile_stack.pop() == 'BEGIN'
+
+        assert self._return_pop() == 'BEGIN'
 
         while_tokens = self._pop_until(lambda tok: tok == 'WHILE')[-2::-1]
         begin_tokens = self._pop_until(lambda tok: tok == 'BEGIN')[-2::-1]
@@ -230,29 +241,32 @@ class Machine(object):
     @_word('IF')
     @_compile_word
     def _if(self):
-        self.compile_stack.append('IF')
+        self._return_push('IF')
         self._push('IF')
 
     @_word('ELSE')
     @_compile_word
     def _else(self):
-        if self.compile_stack[-1] != 'IF':
+        opened = self._return_pop()
+        if opened != 'IF':
             raise ForthError('missing IF')
-        self.compile_stack.append('ELSE')
+        self._return_push(opened)
+        self._return_push('ELSE')
         self._push('ELSE')
 
     @_word('THEN')
     @_compile_word
     def _then(self):
-        tors = self.compile_stack[-1]
-        if tors != 'IF' and tors != 'ELSE':
+        opened = self._return_pop()
+        if opened != 'IF' and opened != 'ELSE':
             raise ForthError('missing IF')
-        tors = self.compile_stack.pop()
+
         false_tokens = ()
-        if tors == 'ELSE':
+        if opened == 'ELSE':
             false_tokens = self._pop_until(lambda tok: tok == 'ELSE')[-2::-1]
-            tors = self.compile_stack.pop()
-        assert tors == 'IF' # I can't imagine how it would fail to be.
+            opened = self._return_pop()
+
+        assert opened == 'IF' # I can't imagine how it would fail to be.
         true_tokens = self._pop_until(lambda tok: tok == 'IF')[-2::-1]
 
         self._push(('BRANCH', (true_tokens, false_tokens)))
@@ -270,6 +284,30 @@ class Machine(object):
     @_compile_word
     def compile_leave_loop(self):
         self._push(('LEAVE', None))
+
+    @_word('>R')
+    def move_data_to_return(self):
+        self._return_push(self._pop())
+
+    @_word('R>')
+    def move_return_to_data(self):
+        self._push(self._return_pop())
+
+    @_word('R@', 'I')
+    def copy_return_to_data(self):
+        tors = self._return_pop()
+        self._return_push(tors)
+        self._push(tors)
+
+    @_word('J')
+    def copy_outer_loop_to_data(self):
+        i = self._return_pop()
+        j = self._return_pop()
+
+        self._return_push(j)
+        self._return_push(i)
+
+        self._push(j)
 
     def add_stackmethod(self, word, func):
         """
@@ -308,6 +346,7 @@ class Machine(object):
             return ret
         except ForthError as e:
             self.data_stack = []
+            self.return_stack = []
             self.mode = IMMEDIATE_MODE
             return ret + ' ? ' + e.message
 
@@ -352,12 +391,14 @@ class Machine(object):
         loop_end = self._pop()
 
         ret = ''
-        try:
-            while index < loop_end:
+        while index < loop_end:
+            self._return_push(index)
+            try:
                 ret += self.interpret(tokens)
-                index += self._pop()
-        except LeaveLoop:
-            pass
+            except LeaveLoop:
+                break
+            index = self._return_pop()
+            index += self._pop()
 
         return ret
 

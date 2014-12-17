@@ -278,14 +278,14 @@ class TestOpenBoxForth():
 
         assert ret == ' compiled'
         assert ':' in m.data_stack
-        assert m.compile_stack == [':']
+        assert m.return_stack == [':']
         assert m.mode is forth.COMPILE_MODE
         assert 'STAR' not in m.words
 
         ret = m.eval(';')
         assert ret == ' ok'
         assert m.data_stack == []
-        assert not m.compile_stack
+        assert not m.return_stack
         assert m.mode is forth.IMMEDIATE_MODE
         assert 'STAR' in m.words
 
@@ -356,7 +356,7 @@ class TestOpenBoxForth():
         m = forth.Machine()
         ret = m.eval(': BLAH')
 
-        m.compile_stack.append('OOPSIE')
+        m.return_stack.append('OOPSIE')
         ret = m.eval('LOOP')
 
         assert 'unclosed OOPSIE' in ret
@@ -408,8 +408,8 @@ class TestOpenBoxForth():
         ret = m.eval(': TEST IF ELSE')
 
         assert 'compiled' in ret
-        assert 'IF' in m.compile_stack
-        assert 'ELSE' in m.compile_stack
+        assert 'IF' in m.return_stack
+        assert 'ELSE' in m.return_stack
         assert 'IF' in m.data_stack
         assert 'ELSE' in m.data_stack
 
@@ -420,7 +420,7 @@ class TestOpenBoxForth():
         assert ret == ' ok'
         assert 'TEST' in m.words
         assert not m.data_stack
-        assert not m.compile_stack
+        assert not m.return_stack
 
         assert m.eval('1 TEST 0 TEST') == '42 33  ok'
         assert 'stack underflow' in m.eval('TEST')
@@ -432,7 +432,7 @@ class TestOpenBoxForth():
         assert ret == ' ok'
         assert 'TEST' in m.words
         assert not m.data_stack
-        assert not m.compile_stack
+        assert not m.return_stack
 
         ret = m.eval(': TEST IF 42 EMIT THEN ; 1 TEST 0 TEST')
         assert ret == '* ok'
@@ -537,3 +537,22 @@ class TestOpenBoxForth():
                      ; TEST''')
 
         assert ret == '0 1 2 3  ok'
+
+    def test_return_stack_fuckery(self):
+        m = forth.Machine()
+        ret = m.eval('1 2 3 >R SWAP R>  . . .')
+
+        assert ret == '3 1 2  ok'
+        assert not m.data_stack
+
+        assert m.eval('2 >R R@ R> . .') == '2 2  ok'
+
+        assert not m.return_stack
+        assert 'return stack underflow' in m.eval('R>')
+
+        assert m.eval(': TEST 5 0 DO I . LOOP ; TEST') == '0 1 2 3 4  ok'
+        assert m.eval(': TEST 5 0 DO R> . 5 >R LOOP ; TEST') == '0  ok'
+
+        ret = m.eval(': TEST 12 10 DO 22 20 DO 42 EMIT J . I . LOOP LOOP ; TEST')
+        assert ret == '*10 20 *10 21 *11 20 *11 21  ok'
+
