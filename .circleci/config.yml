@@ -1,0 +1,29 @@
+version: 2
+jobs:
+    build:
+        working_directory: ~/PyForth
+        docker:
+            - image: circleci/python:2
+              environment:
+                  PYTHONPATH: .
+                  CIRCLE_TEST_REPORTS: junit/
+        steps:
+            - checkout
+            # restores saved dependency cache if the Branch key template or requirements.txt files have not changed since the previous run
+            - restore_cache:
+                key: deps1-{{ .Branch }}-{{ checksum "requirements.txt" }}
+            - run:
+                command: |
+                    python -m virtualenv venv
+                    . venv/bin/activate
+                    pip install -r requirements.txt
+            - save_cache:
+                key: deps1-{{ .Branch }}-{{ checksum "requirements.txt" }}
+                paths:
+                    - "venv"
+            - run: # tests
+                command: |
+                    . venv/bin/activate
+                    make full-test
+            - store_test_results:
+                path: .
